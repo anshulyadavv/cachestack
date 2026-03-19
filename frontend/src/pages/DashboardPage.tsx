@@ -27,7 +27,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   return (
     <div>
       <div className="stat-grid">
-        <StatCard label="Total Keys"     value={`${(totalKeys / 1000).toFixed(1)}M`} delta="+0.5%"  color="#4ade80" spark={liveOps.map(v => v * 0.08)} />
+        <StatCard label="Total Keys"     value={totalKeys >= 1000 ? `${(totalKeys/1000).toFixed(1)}K` : `${totalKeys}`} delta="in store"  color="#4ade80" spark={liveOps.map(v => v * 0.08)} />
         <StatCard label="Memory Usage"   value={`${memUsed} MB`}                      delta="/ 2.0 GB" color="#60a5fa" spark={liveMemTrend} />
         <StatCard label="Ops Per Second" value={`${opsPerSec.toFixed(1)}k`}            delta="ops/s"   color="#fb923c" spark={liveOps} />
       </div>
