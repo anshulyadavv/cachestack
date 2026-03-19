@@ -1,8 +1,4 @@
 // Package networking implements the TCP server and per-client goroutines.
-// Design: one goroutine per client (Go's scheduler makes this cheap).
-// Each client connection gets a buffered reader/writer; commands are parsed
-// and dispatched synchronously within that goroutine — no shared mutable
-// state except via the store (which manages its own mutex).
 package networking
 
 import (
@@ -12,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"datastore/internal/metrics"
@@ -61,7 +58,9 @@ func (s *Server) handleConn(conn net.Conn) {
 	reader := bufio.NewReaderSize(conn, 4096)
 	writer := bufio.NewWriterSize(conn, 4096)
 
-	// clientSubs tracks pub/sub channels this client has subscribed to.
+	// FIX: mutex protects the shared writer from pub/sub goroutines
+	var writerMu sync.Mutex
+
 	clientSubs := make(map[string]<-chan pubsub.Message)
 
 	defer func() {
@@ -70,13 +69,14 @@ func (s *Server) handleConn(conn net.Conn) {
 		}
 	}()
 
-	writeLine := func(s string) {
-		writer.WriteString(s + "\r\n")
+	writeLine := func(line string) {
+		writerMu.Lock()
+		defer writerMu.Unlock()
+		writer.WriteString(line + "\r\n")
 		writer.Flush()
 	}
 
 	for {
-		// Set a generous read deadline to detect dead clients.
 		conn.SetReadDeadline(time.Now().Add(10 * time.Minute))
 
 		line, err := reader.ReadString('\n')
@@ -99,25 +99,23 @@ func (s *Server) handleConn(conn net.Conn) {
 		s.Metrics.RecordOp()
 		log.Printf("[cmd] %s %s %s", time.Now().Format("15:04:05.000"), cmd.Name, strings.Join(cmd.Args, " "))
 
-		resp := s.dispatch(cmd, clientSubs, writeLine)
+		resp := s.Dispatch(cmd, clientSubs, writeLine)
 		if resp != "" {
 			writeLine(resp)
 		}
 	}
 }
 
-// dispatch routes a command to its handler and returns the response string.
-// writeLine is provided for streaming responses (pub/sub push).
-func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubsub.Message, writeLine func(string)) string {
+// Dispatch routes a command to its handler and returns the response string.
+// Exported so AOF replay in main.go can call it directly.
+func (s *Server) Dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubsub.Message, writeLine func(string)) string {
 	args := cmd.Args
 
 	switch cmd.Name {
 
 	// ---- Utility ----
 	case "PING":
-		if len(args) > 0 {
-			return "+" + args[0]
-		}
+		if len(args) > 0 { return "+" + args[0] }
 		return "+PONG"
 
 	case "ECHO":
@@ -128,17 +126,15 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 		return fmt.Sprintf(":%d", s.Store.Len())
 
 	case "KEYS":
-		keys := s.Store.Keys()
-		return formatArray(keys)
+		return formatArray(s.Store.Keys())
 
 	case "INFO":
 		info := s.Metrics.Summary(s.Store.Len(), s.Store.BytesUsed())
 		return "$" + strconv.Itoa(len(info)) + "\r\n" + info
 
 	case "FLUSHALL":
-		for _, k := range s.Store.Keys() {
-			s.Store.Del(k)
-		}
+		// FIX: single atomic flush instead of Keys()+Del() race
+		s.Store.FlushAll()
 		s.AOF.Append("FLUSHALL")
 		return "+OK"
 
@@ -147,7 +143,6 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 		if len(args) < 2 { return argErr(cmd.Name) }
 		key, val := args[0], args[1]
 		s.Store.Set(key, val)
-		// Optional EX seconds
 		if len(args) >= 4 && strings.ToUpper(args[2]) == "EX" {
 			secs, err := strconv.Atoi(args[3])
 			if err != nil { return "-ERR invalid EX value" }
@@ -159,7 +154,7 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 	case "GET":
 		if len(args) < 1 { return argErr(cmd.Name) }
 		val, ok := s.Store.Get(args[0])
-		if !ok { return "$-1" } // nil bulk string
+		if !ok { return "$-1" }
 		return bulkString(val)
 
 	case "DEL":
@@ -172,7 +167,7 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 		if len(args) < 1 { return argErr(cmd.Name) }
 		count := 0
 		for _, k := range args {
-			if _, ok := s.Store.Get(k); ok { count++ }
+			if s.Store.Exists(k) { count++ }
 		}
 		return fmt.Sprintf(":%d", count)
 
@@ -213,10 +208,9 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 	case "LRANGE":
 		if len(args) < 3 { return argErr(cmd.Name) }
 		start, err1 := strconv.Atoi(args[1])
-		stop, err2  := strconv.Atoi(args[2])
+		stop,  err2 := strconv.Atoi(args[2])
 		if err1 != nil || err2 != nil { return "-ERR value is not an integer" }
-		items := s.Store.LRange(args[0], start, stop)
-		return formatArray(items)
+		return formatArray(s.Store.LRange(args[0], start, stop))
 
 	// ---- Set ----
 	case "SADD":
@@ -227,8 +221,7 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 
 	case "SMEMBERS":
 		if len(args) < 1 { return argErr(cmd.Name) }
-		members := s.Store.SMembers(args[0])
-		return formatArray(members)
+		return formatArray(s.Store.SMembers(args[0]))
 
 	// ---- Sorted Set ----
 	case "ZADD":
@@ -242,10 +235,9 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 	case "ZRANGE":
 		if len(args) < 3 { return argErr(cmd.Name) }
 		start, err1 := strconv.Atoi(args[1])
-		stop, err2  := strconv.Atoi(args[2])
+		stop,  err2 := strconv.Atoi(args[2])
 		if err1 != nil || err2 != nil { return "-ERR value is not an integer" }
-		members := s.Store.ZRange(args[0], start, stop)
-		return formatArray(members)
+		return formatArray(s.Store.ZRange(args[0], start, stop))
 
 	// ---- Pub/Sub ----
 	case "SUBSCRIBE":
@@ -256,7 +248,6 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 			clientSubs[ch] = msgCh
 			writeLine(fmt.Sprintf("*3\r\n$9\r\nsubscribe\r\n$%d\r\n%s\r\n:%d",
 				len(ch), ch, len(clientSubs)))
-			// Spin a goroutine that forwards incoming pub/sub messages to this client.
 			go func(channel string, recv <-chan pubsub.Message) {
 				for msg := range recv {
 					payload := fmt.Sprintf("*3\r\n$7\r\nmessage\r\n$%d\r\n%s\r\n$%d\r\n%s",
@@ -265,7 +256,7 @@ func (s *Server) dispatch(cmd *parser.Command, clientSubs map[string]<-chan pubs
 				}
 			}(ch, msgCh)
 		}
-		return "" // responses already sent inline
+		return ""
 
 	case "UNSUBSCRIBE":
 		for _, ch := range args {
@@ -296,9 +287,7 @@ func bulkString(s string) string {
 }
 
 func formatArray(items []string) string {
-	if items == nil {
-		return "*0"
-	}
+	if items == nil { return "*0" }
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("*%d\r\n", len(items)))
 	for _, item := range items {
@@ -311,7 +300,6 @@ func argErr(name string) string {
 	return fmt.Sprintf("-ERR wrong number of arguments for '%s'", strings.ToLower(name))
 }
 
-// parseHTTPCommand parses a command string for HTTP exec endpoint.
 func parseHTTPCommand(line string) (*parser.Command, error) {
 	return parser.Parse(line)
 }
