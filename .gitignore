@@ -1,0 +1,96 @@
+# ── BACKEND (Go) ──────────────────────────────────────────────────────────────
+
+# Compiled binaries
+backend/bin/
+backend/*.exe
+backend/*.dll
+backend/*.so
+backend/*.dylib
+
+# AOF persistence files (contain runtime data, not source)
+backend/*.aof
+*.aof
+
+# Go test cache and coverage
+backend/*.test
+backend/*.out
+backend/coverage.html
+
+# Go workspace files (only needed if using Go workspaces)
+go.work
+go.work.sum
+
+# Air (Go live reload tool) temp dir
+backend/tmp/
+
+
+# ── FRONTEND (Node / Vite / React) ────────────────────────────────────────────
+
+# Dependencies
+frontend/node_modules/
+
+# Production build output
+frontend/dist/
+frontend/dist-ssr/
+
+# Vite cache
+frontend/.vite/
+
+# TypeScript build info
+frontend/*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
+# Environment files (may contain secrets)
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Keep the example so others know what vars are needed
+!frontend/.env.example
+
+
+# ── EDITORS & IDEs ────────────────────────────────────────────────────────────
+
+# VS Code
+.vscode/
+!.vscode/extensions.json
+
+# JetBrains (GoLand, WebStorm)
+.idea/
+*.iml
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+
+# Emacs
+\#*\#
+.\#*
+
+
+# ── OS FILES ──────────────────────────────────────────────────────────────────
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+
+# ── LOGS & TEMP ───────────────────────────────────────────────────────────────
+
+*.log
+*.tmp
+*.temp
+tmp/
+temp/
