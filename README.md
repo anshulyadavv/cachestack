@@ -1,15 +1,11 @@
 # CACHE STACK
 
-> A Redis-compatible in-memory key-value store built from scratch — Go TCP server with AOF persistence, LRU eviction, Pub/Sub, and a live React + TypeScript dashboard with real-time metrics.
+ A Redis-compatible in-memory key-value store built from scratch — Go TCP server with AOF persistence, LRU eviction, Pub/Sub, and a live React + TypeScript dashboard with real-time metrics.
 
-<div align="center">
+<div align="right">
 
-[![GitHub stars](https://img.shields.io/github/stars/YOUR_USERNAME/cachestack?style=social)](https://github.com/YOUR_USERNAME/cachestack/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/YOUR_USERNAME/cachestack?style=social)](https://github.com/YOUR_USERNAME/cachestack/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/YOUR_USERNAME/cachestack)](https://github.com/YOUR_USERNAME/cachestack/issues)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![GitHub stars](https://img.shields.io/github/stars/anshulyadavv/cachestack?style=social)](https://github.com/anshulyadavv/cachestack/stargazers)
 
-**[⭐ Star this repo](https://github.com/YOUR_USERNAME/cachestack)**
 
 </div>
 
@@ -170,7 +166,5 @@ Latency p99        : 76,858 µs
 Made with ❤️ by **Anshul**
 
 If this project helped you, consider giving it a ⭐ — it means a lot!
-
-[![GitHub stars](https://img.shields.io/github/stars/YOUR_USERNAME/cachestack?style=social)](https://github.com/YOUR_USERNAME/cachestack/stargazers)
 
 </div>
