@@ -13,7 +13,7 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
 ];
 
 // ← update this to your real repo URL
-const GITHUB_URL = 'https://github.com/YOUR_USERNAME/cachestack';
+const GITHUB_URL = 'https://github.com/anshulyadavv/cachestack';
 
 interface SidebarProps {
   page: PageId;
