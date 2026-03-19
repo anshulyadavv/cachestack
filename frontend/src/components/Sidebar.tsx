@@ -20,7 +20,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ page, onNavigate }) => (
   <div className="sidebar">
     <div className="sidebar-logo">
       <Icon name="db" />
-      DATA_STORE
+      CACHE STACK
     </div>
 
     <div className="sidebar-instance">
