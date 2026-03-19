@@ -1,5 +1,4 @@
 // cmd/server/main.go — entry point for the DATA_STORE server.
-// Wires all subsystems together: store, AOF, metrics, broker, TCP + HTTP.
 package main
 
 import (
@@ -11,6 +10,7 @@ import (
 	"datastore/config"
 	"datastore/internal/metrics"
 	"datastore/internal/networking"
+	"datastore/internal/parser"
 	"datastore/internal/persistence"
 	"datastore/internal/pubsub"
 	"datastore/internal/store"
@@ -22,10 +22,9 @@ func main() {
 
 	cfg := config.Load()
 
-	// --- Subsystems ---
-	st := store.New(cfg.MaxKeys)
+	st     := store.New(cfg.MaxKeys)
 	broker := pubsub.New()
-	met := metrics.New()
+	met    := metrics.New()
 
 	aof, err := persistence.Open(cfg.AOFPath, cfg.FsyncInterval)
 	if err != nil {
@@ -33,8 +32,6 @@ func main() {
 	}
 	defer aof.Close()
 
-	// --- Replay AOF to restore state ---
-	log.Printf("replaying AOF from %s ...", cfg.AOFPath)
 	srv := &networking.Server{
 		Addr:    cfg.Addr,
 		Store:   st,
@@ -43,16 +40,23 @@ func main() {
 		Broker:  broker,
 	}
 
-	replayed := 0
+	// --- Replay AOF: actually execute every stored command ---
+	log.Printf("replaying AOF from %s ...", cfg.AOFPath)
+	replayed, replayErrors := 0, 0
 	if err := aof.Replay(func(line string) {
-		// Feed each line through the dispatcher with no-op callbacks.
-		// We don't record ops or write AOF during replay.
-		_ = line
+		cmd, err := parser.Parse(line)
+		if err != nil {
+			replayErrors++
+			return
+		}
+		noop      := func(string) {}
+		emptySubs := make(map[string]<-chan pubsub.Message)
+		srv.Dispatch(cmd, emptySubs, noop)
 		replayed++
 	}); err != nil {
 		log.Printf("AOF replay warning: %v", err)
 	}
-	log.Printf("replay complete: %d commands", replayed)
+	log.Printf("replay complete: %d commands restored, %d skipped", replayed, replayErrors)
 
 	// --- HTTP dashboard API (non-blocking) ---
 	srv.StartHTTP(cfg.HTTPAddr)
