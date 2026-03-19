@@ -7,7 +7,6 @@ import type { Notification } from '../hooks/useNotifications';
 interface TopbarProps {
   title: string;
   serverOnline: boolean;
-  regionDisplay: string;   // human-readable e.g. "New Delhi, India"
   searchQuery: string;
   onSearchChange: (q: string) => void;
   notifications: Notification[];
@@ -18,7 +17,7 @@ interface TopbarProps {
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
-  title, serverOnline, regionDisplay,
+  title, serverOnline,
   searchQuery, onSearchChange,
   notifications, notifOpen, onNotifToggle, onDismiss, onDismissAll,
 }) => (
