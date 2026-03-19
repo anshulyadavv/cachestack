@@ -1,5 +1,3 @@
-// All shared TypeScript types for the DATA_STORE dashboard
-
 export interface KeyEntry {
   id: number;
   key: string;
@@ -39,6 +37,7 @@ export interface ServerMetrics {
 export interface ApiKeyInfo {
   key: string;
   ttl: number;
+  type: string;   // now returned by backend
 }
 
 export interface ChannelInfo {

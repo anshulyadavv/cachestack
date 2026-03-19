@@ -1,3 +1,4 @@
+// App.tsx — root component
 import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
@@ -19,41 +20,41 @@ const PAGE_TITLES: Record<PageId, string> = {
   pubsub:    'Pub/Sub',
 };
 
+// Map backend type strings to KeyEntry type union
+function normaliseType(t: string): KeyEntry['type'] {
+  const map: Record<string, KeyEntry['type']> = {
+    string: 'String', hash: 'Hash', list: 'List', set: 'Set', zset: 'ZSet',
+    String: 'String', Hash: 'Hash', List: 'List', Set: 'Set', ZSet: 'ZSet',
+  };
+  return map[t] ?? 'String';
+}
+
 export default function App() {
-  // Navigation
   const [page, setPage] = useState<PageId>('dashboard');
 
-  // Data state
   const [keys,       setKeys]       = useState<KeyEntry[]>(() => INITIAL_KEYS);
   const [logs,       setLogs]       = useState<LogEntry[]>(() => seedLogEntries(12));
   const [pubSubMsgs, setPubSubMsgs] = useState<PubSubMessage[]>([]);
   const [channels,   setChannels]   = useState<string[]>(['events_core', 'global']);
 
-  // Live chart series (rolling window of 20 points)
   const [liveOps,      setLiveOps]      = useState<number[]>(() => Array(20).fill(0).map(() => 14000 + Math.random() * 8000));
   const [liveMemTrend, setLiveMemTrend] = useState<number[]>(() => Array(20).fill(0).map((_, i) => 400 + i * 25 + Math.random() * 20));
 
-  // Scalar metrics
   const [opsPerSec,   setOpsPerSec]   = useState(15.5);
   const [memUsed,     setMemUsed]     = useState(890);
+  const [totalKeys,   setTotalKeys]   = useState(0);     // real count from server
   const [cpu,         setCpu]         = useState(32);
   const [throughput,  setThroughput]  = useState(3.2);
   const [activeConns, setActiveConns] = useState(0);
-
-  // Connection status
   const [serverOnline, setServerOnline] = useState(false);
 
-  // Command palette
   const [cmdInput,  setCmdInput]  = useState('');
   const [cmdResult, setCmdResult] = useState('');
 
-  // ── Poll /api/metrics every second ──────────────────────────────────────
+  // ── Poll /api/metrics every second ────────────────────────────────────────
   useEffect(() => {
-    let prevOps = opsPerSec * 1000;
-
     const tick = async () => {
       const data = await api.metrics();
-
       if (data) {
         setServerOnline(true);
         const ops   = data.ops_per_sec ?? 0;
@@ -61,16 +62,16 @@ export default function App() {
 
         setOpsPerSec(+(ops / 1000).toFixed(1));
         setMemUsed(memMB);
+        setTotalKeys(data.key_count ?? 0);           // real key count
         setActiveConns(data.active_conns ?? 0);
         setLiveOps(prev => [...prev.slice(1), ops]);
         setLiveMemTrend(prev => [...prev.slice(1), memMB]);
+        // CPU is still simulated — backend doesn't expose OS CPU yet
         setCpu(prev => Math.max(5, Math.min(95, prev + Math.floor((Math.random() - 0.48) * 3))));
-        setThroughput(+(data.mem_bytes / 1e9 + Math.random() * 0.5).toFixed(1));
-        if (ops > prevOps * 0.5) setLogs(prev => [genLogEntry(), ...prev].slice(0, 60));
-        prevOps = ops;
+        // Throughput: ops/sec as a proxy (more meaningful than mem_bytes/1e9)
+        setThroughput(+(ops / 5000).toFixed(1));
       } else {
         setServerOnline(false);
-        // Mock drift when offline
         const newOps = 12000 + Math.random() * 10000;
         setLiveOps(prev => [...prev.slice(1), newOps]);
         setOpsPerSec(+(newOps / 1000).toFixed(1));
@@ -78,9 +79,10 @@ export default function App() {
           const last = prev[prev.length - 1];
           return [...prev.slice(1), Math.max(300, Math.min(1900, last + (Math.random() - 0.45) * 15))];
         });
-        setMemUsed(prev  => Math.max(600, Math.min(1950, prev  + Math.floor((Math.random() - 0.45) * 10))));
-        setCpu(prev      => Math.max(5,   Math.min(95,   prev  + Math.floor((Math.random() - 0.48) * 5))));
+        setMemUsed(prev => Math.max(600, Math.min(1950, prev + Math.floor((Math.random() - 0.45) * 10))));
+        setCpu(prev   => Math.max(5, Math.min(95, prev + Math.floor((Math.random() - 0.48) * 5))));
         setThroughput(prev => Math.max(0.5, Math.min(9.8, +(prev + (Math.random() - 0.5) * 0.3).toFixed(1))));
+        // Only generate mock logs when offline
         setLogs(prev => [genLogEntry(), ...prev].slice(0, 60));
       }
     };
@@ -88,33 +90,30 @@ export default function App() {
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Poll /api/keys every 3 s while on the Keys page ──────────────────────
+  // ── Poll /api/keys while on Keys page ─────────────────────────────────────
   useEffect(() => {
     if (page !== 'keys') return;
-
     const fetchKeys = async () => {
       const data = await api.keys();
       if (data && data.length > 0) {
         setKeys(data.map((k, i) => ({
-          id: i + 1,
-          key: k.key,
-          type: 'String',
-          ttl: k.ttl === -1 ? '∞' : k.ttl === -2 ? 'expired' : `${k.ttl}s`,
-          size: '—',
-          value: '(click Edit to load)',
+          id:    i + 1,
+          key:   k.key,
+          type:  normaliseType(k.type),    // real type from backend
+          ttl:   k.ttl === -1 ? '∞' : k.ttl === -2 ? 'expired' : `${k.ttl}s`,
+          size:  '—',
+          value: '',                        // loaded on demand by ViewModal
         })));
       }
     };
-
     fetchKeys();
     const iv = setInterval(fetchKeys, 3000);
     return () => clearInterval(iv);
   }, [page]);
 
-  // ── Mock pub/sub message generator ────────────────────────────────────────
+  // ── Mock pub/sub message stream ────────────────────────────────────────────
   useEffect(() => {
     if (channels.length === 0) return;
     const iv = setInterval(() => {
@@ -123,7 +122,7 @@ export default function App() {
     return () => clearInterval(iv);
   }, [channels]);
 
-  // ── Key actions ───────────────────────────────────────────────────────────
+  // ── Key actions ────────────────────────────────────────────────────────────
   const handleDeleteKey = useCallback(async (id: number) => {
     const k = keys.find(x => x.id === id);
     if (k) await api.deleteKey(k.key);
@@ -136,7 +135,7 @@ export default function App() {
     setKeys(prev => prev.map(x => x.id === id ? { ...x, value: newVal } : x));
   }, [keys]);
 
-  // ── Command palette ───────────────────────────────────────────────────────
+  // ── Command palette ────────────────────────────────────────────────────────
   const execCmd = useCallback(async () => {
     const cmd = cmdInput.trim();
     if (!cmd) return;
@@ -144,28 +143,27 @@ export default function App() {
     const data = await api.exec(cmd);
     setCmdResult(data?.result ?? data?.error ?? '(server offline — command not sent)');
 
+    // Add real executed command to logs
     setLogs(prev => [{
-      id: Date.now(),
-      cmd: cmd.split(' ')[0].toUpperCase(),
-      key: cmd.split(' ').slice(1).join(' '),
+      id:      Date.now(),
+      cmd:     cmd.split(' ')[0].toUpperCase(),
+      key:     cmd.split(' ').slice(1).join(' '),
       latency: '—',
-      ts: new Date().toTimeString().slice(0, 8),
+      ts:      new Date().toTimeString().slice(0, 8),
     }, ...prev].slice(0, 60));
   }, [cmdInput]);
 
   return (
     <div id="root">
       <Sidebar page={page} onNavigate={setPage} />
-
       <div className="main">
         <Topbar title={PAGE_TITLES[page]} serverOnline={serverOnline} />
-
         <div className="content">
           {page === 'dashboard' && (
             <DashboardPage
               liveOps={liveOps}
               liveMemTrend={liveMemTrend}
-              totalKeys={keys.length * 100000}
+              totalKeys={totalKeys}        // real count, not multiplied
               memUsed={memUsed}
               opsPerSec={opsPerSec}
               logs={logs}
@@ -192,7 +190,6 @@ export default function App() {
               onUnsubscribe={ch => setChannels(p => p.filter(c => c !== ch))}
             />
           )}
-
           <CommandPalette
             value={cmdInput}
             result={cmdResult}
