@@ -1,4 +1,19 @@
-# CACHE STACK 
+# CACHE STACK
+
+> A Redis-compatible in-memory key-value store built from scratch — Go TCP server with AOF persistence, LRU eviction, Pub/Sub, and a live React + TypeScript dashboard with real-time metrics.
+
+<div align="center">
+
+[![GitHub stars](https://img.shields.io/github/stars/YOUR_USERNAME/cachestack?style=social)](https://github.com/YOUR_USERNAME/cachestack/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/YOUR_USERNAME/cachestack?style=social)](https://github.com/YOUR_USERNAME/cachestack/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/YOUR_USERNAME/cachestack)](https://github.com/YOUR_USERNAME/cachestack/issues)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+**[⭐ Star this repo](https://github.com/YOUR_USERNAME/cachestack)**
+
+</div>
+
+---
 
 Redis-like in-memory key-value store with a Go backend and a React + TypeScript dashboard.
 
@@ -43,14 +58,18 @@ frontend/src/
 │   └── mock.ts             ← Seed data + generators (offline mode)
 ├── hooks/
 │   ├── useLineChart.ts     ← Chart.js line chart with live update
-│   └── useBarChart.ts      ← Chart.js bar chart (read/write split)
+│   ├── useBarChart.ts      ← Chart.js bar chart (read/write split)
+│   ├── useRegion.ts        ← IP geolocation for dynamic region label
+│   └── useNotifications.ts ← Toast notification queue
 ├── components/
 │   ├── Icon.tsx            ← Inline SVG icon set
-│   ├── Sidebar.tsx         ← Left nav
-│   ├── Topbar.tsx          ← Header bar + server status badge
+│   ├── Sidebar.tsx         ← Left nav + GitHub star + copyright
+│   ├── Topbar.tsx          ← Header bar + server status + search + notifications
 │   ├── StatCard.tsx        ← Metric card with sparkline
 │   ├── ViewModal.tsx       ← Key view/edit modal
-│   └── CommandPalette.tsx  ← Bottom execute bar
+│   ├── CommandPalette.tsx  ← Bottom execute bar
+│   ├── NotificationPanel.tsx ← Bell dropdown panel
+│   └── ToastStrip.tsx      ← Floating toast alerts
 ├── pages/
 │   ├── DashboardPage.tsx   ← Stat cards + live charts + recent logs
 │   ├── KeyExplorerPage.tsx ← Table with search/filter/CRUD
@@ -118,8 +137,9 @@ backend/
 |---|---|---|
 | GET | `/health` | Health check |
 | GET | `/api/metrics` | Live ops/sec, memory, connections |
-| GET | `/api/keys` | All keys + TTL |
+| GET | `/api/keys` | All keys + TTL + type |
 | DELETE | `/api/keys?key=foo` | Delete a key |
+| GET | `/api/keys/value?key=foo` | Fetch value of a single key |
 | POST | `/api/exec` | Execute any command `{"cmd":"GET foo"}` |
 | GET | `/api/pubsub/channels` | Active channels + subscriber counts |
 
@@ -132,3 +152,25 @@ cd backend
 go build -o bin/benchmark ./cmd/benchmark
 ./bin/benchmark -clients 100 -requests 1000 -cmd mixed
 ```
+
+Sample results (loopback):
+
+```
+Requests completed : 100000
+Errors             : 0
+Throughput         : 5,722 req/s
+Latency p50        : 2,335 µs
+Latency p99        : 76,858 µs
+```
+
+---
+
+<div align="center">
+
+Made with ❤️ by **Anshul**
+
+If this project helped you, consider giving it a ⭐ — it means a lot!
+
+[![GitHub stars](https://img.shields.io/github/stars/YOUR_USERNAME/cachestack?style=social)](https://github.com/YOUR_USERNAME/cachestack/stargazers)
+
+</div>
