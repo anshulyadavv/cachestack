@@ -1,0 +1,5 @@
+[phases.build]
+cmds = ["go build -o bin/server ./cmd/server"]
+
+[start]
+cmd = "bin/server -addr :$PORT -http :8080"
