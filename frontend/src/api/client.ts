@@ -1,5 +1,4 @@
-// api/client.ts
-// Thin fetch wrapper. Returns null on any error → callers fall back to mock data.
+// api/client.ts — fetch wrapper for the Go HTTP API
 import type { ServerMetrics, ApiKeyInfo, ChannelInfo } from '../types';
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:6380';
@@ -18,16 +17,27 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T | null> 
 }
 
 export const api = {
-  health: () => apiFetch<{ status: string; time: string }>('/health'),
+  health: () =>
+    apiFetch<{ status: string; time: string }>('/health'),
 
-  metrics: () => apiFetch<ServerMetrics>('/api/metrics'),
+  metrics: () =>
+    apiFetch<ServerMetrics>('/api/metrics'),
 
-  keys: () => apiFetch<ApiKeyInfo[]>('/api/keys'),
+  // Now returns type field too
+  keys: () =>
+    apiFetch<ApiKeyInfo[]>('/api/keys'),
+
+  // Fetch actual value for a key (used by Edit modal)
+  keyValue: (key: string) =>
+    apiFetch<{ key: string; type: string; ttl: number; value: string }>(
+      `/api/keys/value?key=${encodeURIComponent(key)}`
+    ),
 
   deleteKey: (key: string) =>
-    apiFetch<{ deleted: number }>(`/api/keys?key=${encodeURIComponent(key)}`, {
-      method: 'DELETE',
-    }),
+    apiFetch<{ deleted: number }>(
+      `/api/keys?key=${encodeURIComponent(key)}`,
+      { method: 'DELETE' }
+    ),
 
   exec: (cmd: string) =>
     apiFetch<{ result?: string; error?: string }>('/api/exec', {
@@ -36,5 +46,6 @@ export const api = {
       body: JSON.stringify({ cmd }),
     }),
 
-  channels: () => apiFetch<ChannelInfo[]>('/api/pubsub/channels'),
+  channels: () =>
+    apiFetch<ChannelInfo[]>('/api/pubsub/channels'),
 };

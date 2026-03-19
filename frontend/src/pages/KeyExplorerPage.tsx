@@ -6,6 +6,7 @@ import type { KeyEntry } from '../types';
 
 interface KeyExplorerPageProps {
   keys: KeyEntry[];
+  searchQuery?: string;   // global search from topbar
   onDelete: (id: number) => void;
   onSave: (id: number, val: string) => void;
 }
@@ -15,16 +16,22 @@ const TYPE_CLASSES: Record<string, string> = {
   List: 'type-list', Set: 'type-set', ZSet: 'type-zset',
 };
 
-export const KeyExplorerPage: React.FC<KeyExplorerPageProps> = ({ keys, onDelete, onSave }) => {
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [modal, setModal] = useState<{ item: KeyEntry; mode: 'view' | 'edit' } | null>(null);
+export const KeyExplorerPage: React.FC<KeyExplorerPageProps> = ({
+  keys, searchQuery = '', onDelete, onSave,
+}) => {
+  // Local search overrides global search if the user types in the in-page bar
+  const [localSearch, setLocalSearch] = useState('');
+  const [typeFilter, setTypeFilter]   = useState('all');
+  const [modal, setModal]             = useState<{ item: KeyEntry; mode: 'view' | 'edit' } | null>(null);
+
+  // Use local search if set, otherwise fall back to global topbar search
+  const activeSearch = localSearch || searchQuery;
 
   const filtered = useMemo(() => keys.filter(k => {
-    const matchSearch = k.key.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = k.key.toLowerCase().includes(activeSearch.toLowerCase());
     const matchType   = typeFilter === 'all' || k.type.toLowerCase() === typeFilter;
     return matchSearch && matchType;
-  }), [keys, search, typeFilter]);
+  }), [keys, activeSearch, typeFilter]);
 
   return (
     <div>
@@ -34,10 +41,16 @@ export const KeyExplorerPage: React.FC<KeyExplorerPageProps> = ({ keys, onDelete
             <Icon name="search" />
             <input
               type="text"
-              placeholder="Search keys... (e.g. user:*, session:*)"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
+              placeholder="Filter keys… (e.g. user:, session:)"
+              value={localSearch || searchQuery}
+              onChange={e => setLocalSearch(e.target.value)}
             />
+            {(localSearch || searchQuery) && (
+              <span
+                onClick={() => setLocalSearch('')}
+                style={{ color: 'var(--text3)', cursor: 'pointer', fontSize: 14 }}
+              >×</span>
+            )}
           </div>
           <select
             className="filter-select"
@@ -50,23 +63,32 @@ export const KeyExplorerPage: React.FC<KeyExplorerPageProps> = ({ keys, onDelete
             ))}
           </select>
           <span style={{ fontSize: 11, color: 'var(--text3)', whiteSpace: 'nowrap' }}>
-            {filtered.length} keys
+            {filtered.length} / {keys.length} keys
           </span>
         </div>
 
         <div className="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Key</th><th>Type</th><th>TTL</th><th>Size</th><th>Actions</th>
-              </tr>
+              <tr><th>Key</th><th>Type</th><th>TTL</th><th>Size</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)' }}>No keys found</td></tr>
+                <tr>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: 32, color: 'var(--text3)' }}>
+                    {keys.length === 0 ? 'No keys in store yet — run SET to add one.' : 'No keys match your search.'}
+                  </td>
+                </tr>
               ) : filtered.map(row => (
                 <tr key={row.id}>
-                  <td><span className="key-name">{row.key}</span></td>
+                  <td>
+                    <span className="key-name">
+                      {/* Highlight matching characters */}
+                      {activeSearch
+                        ? highlightMatch(row.key, activeSearch)
+                        : row.key}
+                    </span>
+                  </td>
                   <td><span className={`type-badge ${TYPE_CLASSES[row.type] ?? 'type-string'}`}>{row.type}</span></td>
                   <td><span className={`ttl-val${row.ttl === '∞' ? ' ttl-inf' : ''}`}>{row.ttl}</span></td>
                   <td><span className="size-val" style={{ color: 'var(--text2)' }}>{row.size}</span></td>
@@ -92,13 +114,27 @@ export const KeyExplorerPage: React.FC<KeyExplorerPageProps> = ({ keys, onDelete
 
       {modal && (
         <ViewModal
-          item={modal.item}
-          mode={modal.mode}
+          item={modal.item} mode={modal.mode}
           onClose={() => setModal(null)}
-          onDelete={onDelete}
-          onSave={onSave}
+          onDelete={onDelete} onSave={onSave}
         />
       )}
     </div>
   );
 };
+
+// Highlights the matching substring in yellow
+function highlightMatch(text: string, query: string): React.ReactNode {
+  if (!query) return text;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span style={{ color: 'var(--yellow)', fontWeight: 600 }}>
+        {text.slice(idx, idx + query.length)}
+      </span>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
