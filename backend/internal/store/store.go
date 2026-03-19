@@ -402,3 +402,45 @@ func FormatZScore(f float64) string {
 	}
 	return fmt.Sprintf("%g", f)
 }
+
+// FlushAll atomically removes every key. Safe to call concurrently.
+func (s *Store) FlushAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data    = make(map[string]*Entry)
+	s.lruList = list.New()
+	s.byteUsed = 0
+}
+
+// Exists returns true if the key exists and is not expired.
+func (s *Store) Exists(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.getLocked(key)
+	return ok
+}
+
+// Type returns the value type string for a key, or "" if not found.
+func (s *Store) Type(key string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.data[key]
+	if !ok || e.isExpired() { return "" }
+	switch e.vtype {
+	case TypeString: return "String"
+	case TypeList:   return "List"
+	case TypeSet:    return "Set"
+	case TypeZSet:   return "ZSet"
+	}
+	return "String"
+}
+
+// GetString returns the string value of a key. Returns (value, true) for
+// String type, ("", false) for missing/wrong type.
+func (s *Store) GetString(key string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.getLocked(key)
+	if !ok || e.vtype != TypeString { return "", false }
+	return e.str, true
+}
