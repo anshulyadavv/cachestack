@@ -69,7 +69,7 @@ export const Topbar: React.FC<TopbarProps> = ({
       onDismissAll={onDismissAll}
     />
 
-    {/* Admin button — always says Admin, region shown as small pill */}
+    {/* Admin button */}
     <div className="topbar-user">
       <Icon name="user" />
       Admin
