@@ -231,7 +231,6 @@ export default function App() {
         <Topbar
           title={PAGE_TITLES[page]}
           serverOnline={serverOnline}
-          regionDisplay={region.display}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
           notifications={notifications}
