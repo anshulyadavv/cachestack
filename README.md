@@ -1,4 +1,4 @@
-# DATA_STORE — Full Stack
+# CACHE STACK 
 
 Redis-like in-memory key-value store with a Go backend and a React + TypeScript dashboard.
 
